@@ -50,6 +50,10 @@ public:
     {
         return pthread_mutex_lock( &m_mutex ) == 0;
     }
+    bool trylock()
+    {
+    	return pthread_mutex_trylock( &m_mutex) == 0;
+    }
     bool unlock()
     {
         return pthread_mutex_unlock( &m_mutex ) == 0;
