@@ -1,7 +1,18 @@
-main.d: ../main.cpp ../timer.hpp ../threadpool.hpp ../locker.hpp
+main.d: ../main.cpp ../WebServer.hpp ../threadpool.hpp ../locker.hpp \
+ ../utils.h ../config.hpp ../HttpParser.h ../Request.h ../IOwrapper.hpp
 
-../timer.hpp:
+../WebServer.hpp:
 
 ../threadpool.hpp:
 
 ../locker.hpp:
+
+../utils.h:
+
+../config.hpp:
+
+../HttpParser.h:
+
+../Request.h:
+
+../IOwrapper.hpp:

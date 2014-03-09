@@ -4,80 +4,161 @@
  *  Created on: Feb 11, 2014
  *      Author: prehawk
  */
+#include "WebServer.hpp"
+#include "HttpParser.h"
+#include "Request.h"
+#include "IOwrapper.hpp"
 
 
-#include <unistd.h>
-#include <signal.h>
-#include <stdio.h>
 #include <iostream>
-#include <iomanip>
-#include "timer.hpp"
-#include <boost/assign.hpp>
-#include <boost/shared_ptr.hpp>
-#include <boost/format.hpp>
-#include "threadpool.hpp"
-
-using namespace std;
-using boost::format;
-using boost::shared_ptr;
-
-#define SIZE 20
-#define LINE_MAX 100;
-static Timer * tm_hp;
+#include <sstream>
+#include <ios>
 
 
 
-void signal_handler(int sig){
-	tm_hp->tick();
-	alarm(1);
-}
-
-void addsignal(int sig){
-	struct sigaction sa;
-	memset(&sa, '\0', sizeof(sa));
-	sa.sa_handler = signal_handler;
-	sa.sa_flags |= SA_RESTART;
-	sigfillset(&sa.sa_mask);
-	assert(sigaction(sig, &sa, NULL) != -1);
-}
-
-class Req{
-public:
-	Req(int reqno):m_reqno(reqno){}
-	inline void process(pthread_t threadno){
-		cout << format("Thread %lu working request %d\n") % threadno % m_reqno;
-		sleep(1);
-	}
-private:
-	int m_reqno;
-};
 
 int main(int argc, char * argv[])
 {
 
+	WebServer<HttpParser> wb = WebServer<HttpParser>("127.0.0.1", 6543, 2, 10000);
+	wb.run();
 
-	shared_ptr< threadpool<Req> > pool
-	= shared_ptr< threadpool<Req> >(new threadpool<Req>(2, 100));
-
-	for(int i=0; i<5; ++i){
-		Req * req = new Req(i);
-		pool->append(req);
-	}
-	cout << format("request queue now have %d requests\n") % pool->queuesize();
-
-	pool->run();
-
-//	HttpParser hp = HttpParser();
-//	char temp[LINE_MAX];
-//	temp = "";
-//	REQ_STATE ret = hp.parse(temp);
-//	if(ret == REQ_OK){
-//		cout << hp.response;
-//	}
-//	else{
-//		cout << "request not complete" << endl;
-//	}
+//    char head[] 	= "GET / HTTP1.1\r\nConnection: close\r\nUser-Agent: Wget/1.12 (linux-gnu)\r\nHost: www.baidu.com\r\n\r\n";
+//    char head2[]    = "GET / HTTP1.1\r\nConnection: close\r\nUser-Agent: Wget/1.12 (linux-gnu)\r\nHost: www.baidu.com\r\n";
+//    char inhead[] 	= "GET / HTTP1.1\r\nConnecti";
+//    char inhead2[] 	= "GET / HTTP1.1\r\nConnection: close\r";
+//    char inhead3[] 	= "GET / HTTP1.1\r\nConnection: clos";
+//
+//    bool isNewLine = true  ;
+//    enum WORD_STATE{WORD_TAG, WORD_CONTENT, WORD_CLOSE } 		wordst = WORD_CONTENT;
+//    enum LINE_STATE{L_REQ, L_CONNECTION, L_HOST, L_AGENT, L_UNKNOWN}	linest = L_REQ;
+//
+//	enum METHOD{GET, HEAD, TRACE}										m_method = GET;
+//	enum CONNECTION{KEEPALIVE, CLOSE}									m_conn   = CLOSE;
+//	enum HTTP_STATUS{_100, _200, _400, _403, _404, _500}				m_httpst = _200;
+//
+//	string	m_url;
+//	string	m_version;
+//	string  m_agent;
+//	string  m_host;
+//
+//	io::stream<My_InOut> 	in(inhead3, sizeof inhead3);
+//
+//	string s;
+//    int loop = 0;
+//    while(in >> s){
+//    	++loop;
+//    	int npos = in.tellg();
+//    	int len = s.length();
+//
+//    	//Set the WORD_STATE, peek next character to see if the word or line is complete.
+//    	char c = in.peek();
+//    	switch( c ){
+//			case 0x20: // space
+//				wordst = WORD_CONTENT;
+//				if(isNewLine){
+//					wordst = WORD_TAG;
+//					isNewLine = false;
+//				}
+//				break;
+//			case 0xd: // \r
+//			case 0xa: // \n
+//				wordst = WORD_CONTENT;
+//				isNewLine = true;
+//				break;
+//			case -1: // eof
+//				wordst = WORD_CLOSE;
+//				break;
+//			default:
+//				cout << "something bad happened" << endl;
+//				break;
+//
+//    	}//switch
+//
+//    	int wordcounter;
+//		switch(wordst){
+//			case WORD_TAG:
+//			{
+//				wordcounter = 0;
+//				if(s == "GET"){
+//					linest = L_REQ;
+//					m_method = GET;
+//				}
+//				else if(s == "HEAD"){
+//					linest = L_REQ;
+//					m_method = HEAD;
+//				}
+//				else if(s == "TRACE"){
+//					linest = L_REQ;
+//					m_method = TRACE;
+//				}
+//				else if(s == "Connection:"){
+//					linest = L_CONNECTION;
+//				}
+//				else if(s == "User-Agent:"){
+//					linest = L_AGENT;
+//				}
+//				else if(s == "Host:"){
+//					linest = L_HOST;
+//				}
+//				else{
+//					linest = L_UNKNOWN;
+//				}
+//				break;
+//			}
+//			case WORD_CONTENT:
+//			{
+//				++wordcounter;
+//				switch(linest){
+//					case L_REQ:
+//					{
+//						if(wordcounter == 1){
+//							m_url = s;
+//						}
+//						else if(wordcounter == 2){
+//							m_version = s;
+//						}
+//						break;
+//					}
+//					case L_CONNECTION:
+//					{
+//						if(s == "close"){
+//							m_conn = CLOSE;
+//						}
+//						else if(s == "keep-alive"){
+//							m_conn = KEEPALIVE;
+//						}
+//						break;
+//					}
+//					case L_HOST:
+//					{
+//						m_host += s;
+//						break;
+//					}
+//					case L_AGENT:
+//					{
+//						m_agent += s;
+//						m_agent += " ";
+//						break;
+//					}
+//					case L_UNKNOWN:
+//						break;
+//				}
+//				break;
+//			}
+//			case WORD_CLOSE:
+//			{
+//				cout << "header is read completely!" << endl;
+//				break;
+//			}
+//		}
+//
+//
+//
+//
+//    }//while
+//
 
 	int i;
-	cin >> i;
+	std::cin >> i;
 }

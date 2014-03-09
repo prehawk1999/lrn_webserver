@@ -4,13 +4,25 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 CPP_SRCS += \
-../main.cpp 
+../HttpParser.cpp \
+../Request.cpp \
+../heaptimer.cpp \
+../main.cpp \
+../utils.cpp 
 
 OBJS += \
-./main.o 
+./HttpParser.o \
+./Request.o \
+./heaptimer.o \
+./main.o \
+./utils.o 
 
 CPP_DEPS += \
-./main.d 
+./HttpParser.d \
+./Request.d \
+./heaptimer.d \
+./main.d \
+./utils.d 
 
 
 # Each subdirectory must supply rules for building sources it contributes

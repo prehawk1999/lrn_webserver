@@ -14,8 +14,9 @@
 #include <list>
 #include <iostream>
 #include <exception>
+
+
 #include "locker.hpp"
-#include "timer.hpp"
 
 template< typename T>
 class threadpool
@@ -23,7 +24,7 @@ class threadpool
 public:
 	threadpool(int threadnum = 1, size_t queuelen = 10000);
 	~threadpool();
-	bool append(T * request);
+	bool append(T request);
 	inline void run(){m_worklocker.unlock();}
 	inline int queuesize(){return m_req_list.size();}
 	inline int queuecap(){return m_max_reqnum;}
@@ -41,7 +42,7 @@ private:
 	locker m_queuelocker;
 	locker m_worklocker;
 	pthread_t * pth_array;
-	std::list<T *> m_req_list;
+	std::list<T> m_req_list;
 	bool m_stop;
 };
 
@@ -76,7 +77,7 @@ threadpool<T>::~threadpool(){
 }
 
 template<typename T>
-bool threadpool<T>::append(T * request){
+bool threadpool<T>::append(T request){
 
 	m_queuelocker.lock();
 	if(m_req_list.size() > m_max_reqnum){
@@ -103,7 +104,7 @@ void threadpool<T>::dowork()
 			m_queuelocker.unlock();
 			continue;
 		}
-		T * request = m_req_list.back();
+		T request = m_req_list.back();
 		m_req_list.pop_back();
 		m_queuelocker.unlock();
 		if(!request){
