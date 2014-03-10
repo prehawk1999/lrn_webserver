@@ -12,13 +12,15 @@
 #define MAX_USER 10000
 #define MAX_EVENTS 10000
 
-#define MAX_RECV_BUFFER 4096
-#define MAX_SEND_BUFFER 4096
 
+#define MAX_BUF 		40960
 #define MAX_LINE		200
+#define IOV_COUNT		2
 
 #define DOC_ROOT "/home/prehawk/www"
 
+class A{
 
+};
 
 #endif /* CONFIG_HPP_ */

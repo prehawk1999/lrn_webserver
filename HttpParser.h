@@ -41,7 +41,7 @@ class HttpParser: public Request
 {
 
 	enum REQ_STATE{REQ_OK, REQ_WAIT, REQ_BAD};
-	enum WORD_STATE{W_TAG, W_CONTENT, W_CLOSE };
+	enum WORD_STATE{W_TAG, W_CONTENT, W_BAD };
 	enum LINE_STATE{L_REQ, L_CONNECTION, L_HOST, L_AGENT, L_UNKNOWN};
 	enum METHOD{GET, HEAD, TRACE};
 	enum CONNECTION{KEEPALIVE, CLOSE};
@@ -57,9 +57,9 @@ public:
 
 private:
 	void parse();
-	void writeResHead();
-	string geturlfile();
-	inline void clearline(){memset(m_line, '\0', sizeof m_line);}
+	void switchLine();
+	void fillStates();
+	void setHttpState();
 
 private:
 	int							sockfd_;
@@ -68,11 +68,10 @@ private:
 	bool						isNewLine_;
     WORD_STATE 					wordst_;
     LINE_STATE					linest_;
+    string						word_;
+    int							contentcount_;
 
 private:
-
-	char			m_line[MAX_LINE];
-
 	//request
 	METHOD			m_method;
 	string			m_url;

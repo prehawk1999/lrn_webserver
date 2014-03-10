@@ -46,10 +46,6 @@ protected:
 	void zerobuffer();
 
 	int sockfd_;
-	std::istringstream strm_recv;
-	std::ostringstream strm_send;
-	char buffer_recv[MAX_RECV_BUFFER];
-	char buffer_send[MAX_SEND_BUFFER];
 
 };
 

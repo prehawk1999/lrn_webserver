@@ -15,8 +15,6 @@
 #include <ios>
 
 
-
-
 int main(int argc, char * argv[])
 {
 
@@ -42,7 +40,7 @@ int main(int argc, char * argv[])
 //	string  m_agent;
 //	string  m_host;
 //
-//	io::stream<My_InOut> 	in(inhead3, sizeof inhead3);
+//	io::stream<My_InOut> 	in(head, sizeof head);
 //
 //	string s;
 //    int loop = 0;
@@ -53,6 +51,7 @@ int main(int argc, char * argv[])
 //
 //    	//Set the WORD_STATE, peek next character to see if the word or line is complete.
 //    	char c = in.peek();
+//    	cout << loop << ":\t" << s << endl;
 //    	switch( c ){
 //			case 0x20: // space
 //				wordst = WORD_CONTENT;
@@ -157,7 +156,7 @@ int main(int argc, char * argv[])
 //
 //
 //    }//while
-//
+
 
 	int i;
 	std::cin >> i;

@@ -13,7 +13,9 @@
 #include <boost/iostreams/positioning.hpp>
 #include <time.h>
 
-#define MAX_BUF 	4096
+#include "config.hpp"
+
+
 
 namespace io = boost::iostreams;
 
@@ -33,8 +35,12 @@ struct My_InOut{
         {
             memcpy(s,m_pCur,nCount);
             m_pCur += nCount;
+            return nCount;
         }
-        return nCount;
+        else{
+        	return -1;
+        }
+
     }
 
     std::streamsize write(const char_type* s, std::streamsize n)
@@ -78,19 +84,18 @@ private:
     std::streamsize m_size;
 };
 
-
 struct RecvHandler{
 	typedef char 						char_type;
 	typedef io::seekable_device_tag 	category;
 
-	RecvHandler(int sockfd):m_sockfd(sockfd), pos_(0){}
+	RecvHandler(int sockfd):
+		sockfd_(sockfd), pos_(0){}
 
 	std::streamsize read(char_type * s, std::streamsize n)
 	{
 		int bytes;
-		bytes = recv(m_sockfd, s + pos_, n - pos_, 0);
-		if(bytes == -1 or errno == EAGAIN){
-			std::cerr << "IOhandler read failed." << std::endl;
+		bytes = recv(sockfd_, s + pos_, n - pos_, 0);
+		if(bytes == -1){
 			return -1;
 		}
 		else{
@@ -101,34 +106,33 @@ struct RecvHandler{
 
     std::streamsize write(const char_type* s, std::streamsize n){ }
 
-	std::streampos seek(io::stream_offset off, std::ios_base::seekdir way)
+	std::streampos seek(io::stream_offset off, std::ios_base::seekdir way )
 	{
-        // 定位
-        int pNewPos;
-        switch(way)
-        {
-        case std::ios_base::beg:
-            pNewPos = 0;
-            break;
-        case std::ios_base::cur:
-            pNewPos = pos_;
-            break;
-        case std::ios_base::end: // should not be used
-            pNewPos = MAX_BUF;
-            break;
-        }
+		// 定位
+		int pNewPos;
+		switch(way)
+		{
+		case std::ios_base::beg:
+			pNewPos = 0;
+			break;
+		case std::ios_base::cur:
+			pNewPos = pos_;
+			break;
+		case std::ios_base::end: // should not be used
+			pNewPos = MAX_BUF;
+			break;
+		}
 
-        pNewPos += off;
-        if(pNewPos < pos_ || pNewPos > MAX_BUF)
-            throw std::ios_base::failure("bad seek offset");
+		pNewPos += off;
+		if(pNewPos > MAX_BUF)
+			throw std::ios_base::failure("bad seek offset");
 
-        pos_ = pNewPos;
-        return pos_;
+		pos_ = pNewPos;
+		return pos_;
 	}
 
 private:
-	int 				m_sockfd;
-
+	int 				sockfd_;
 	std::streamsize 	pos_;
 };
 
@@ -136,11 +140,17 @@ struct SendHandler{
 	typedef char 						char_type;
 	typedef io::seekable_device_tag 	category;
 
-	SendHandler(int sockfd):sockfd_(sockfd), pos_(0){}
+	SendHandler(int sockfd):
+		sockfd_(sockfd), pos_(0), iovc_(IOV_COUNT){}
 
 	std::streamsize read(char_type * s, std::streamsize n){}
 
-    std::streamsize write(const char_type* s, std::streamsize n){}
+    std::streamsize write(const char_type * s, std::streamsize n)
+    {
+    	int bytes;
+    	bytes = writev(sockfd_, (const iovec *)s, iovc_);
+
+    }
 
 	std::streampos seek(io::stream_offset off, std::ios_base::seekdir way)
 	{
@@ -170,8 +180,8 @@ struct SendHandler{
 private:
 	int 				sockfd_;
 	std::streamsize 	pos_;
-    struct iovec m_iv[2];
-    int m_iv_count;
+	int					iovc_;
+    struct iovec 		iov_[2];
 };
 
 #endif /* IOWRAPER_HPP_ */
