@@ -20,70 +20,6 @@
 namespace io = boost::iostreams;
 
 
-struct My_InOut{
-    typedef char 						char_type;
-    typedef io::seekable_device_tag 	category;
-
-    My_InOut(char * Buf, std::streamsize size)
-        :m_pCur(Buf),m_pBuf(Buf),m_size(size){;}
-
-    std::streamsize read(char_type* s, std::streamsize n)
-    {
-       //用min来选择n还是剩余大小以防止溢出
-        std::streamsize nCount = std::min(n, m_size - (m_pCur-m_pBuf));
-        if(nCount)
-        {
-            memcpy(s,m_pCur,nCount);
-            m_pCur += nCount;
-            return nCount;
-        }
-        else{
-        	return -1;
-        }
-
-    }
-
-    std::streamsize write(const char_type* s, std::streamsize n)
-    {
-        std::streamsize nCount = std::min(n,m_size - (m_pCur-m_pBuf));
-        if(nCount)
-        {
-            memcpy(m_pCur,s,nCount);
-            m_pCur += nCount;
-        }
-        return nCount;
-    }
-
-    io::stream_offset seek(io::stream_offset off, std::ios_base::seekdir way)
-    {
-        // 定位
-        char * pNewPos;
-        switch(way)
-        {
-        case std::ios_base::beg:
-            pNewPos = m_pBuf;
-            break;
-        case std::ios_base::cur:
-            pNewPos = m_pCur;
-            break;
-        case std::ios_base::end:
-            pNewPos = m_pBuf + m_size;
-            break;
-        }
-
-        pNewPos += off;
-        if(pNewPos < m_pBuf || pNewPos - m_pBuf > m_size)
-            throw std::ios_base::failure("bad seek offset");
-
-        m_pCur = pNewPos;
-        return m_pCur - m_pBuf;
-    }
-private:
-    char *m_pCur;
-    char *m_pBuf;
-    std::streamsize m_size;
-};
-
 struct RecvHandler{
 	typedef char 						char_type;
 	typedef io::seekable_device_tag 	category;
@@ -141,14 +77,24 @@ struct SendHandler{
 	typedef io::seekable_device_tag 	category;
 
 	SendHandler(int sockfd):
-		sockfd_(sockfd), pos_(0), iovc_(IOV_COUNT){}
+		sockfd_(sockfd), pos_(0), iovc_(0){}
 
 	std::streamsize read(char_type * s, std::streamsize n){}
 
     std::streamsize write(const char_type * s, std::streamsize n)
     {
-    	int bytes;
-    	bytes = writev(sockfd_, (const iovec *)s, iovc_);
+    	// "cout << 0;"  to indicate the end of input, and send the iovec.
+    	if( *(s + pos_) == 0x30 ){
+    		int bytes;
+    		bytes = writev(sockfd_, iov_, iovc_);
+    		return bytes;
+    	}
+    	else{
+    		iov_[iovc_++] = *( (const iovec *)(s + pos_) );
+    		pos_ += sizeof(iovec);
+    		return 0;
+    	}
+
 
     }
 
@@ -181,7 +127,9 @@ private:
 	int 				sockfd_;
 	std::streamsize 	pos_;
 	int					iovc_;
-    struct iovec 		iov_[2];
+	char *				test[10];
+    struct iovec  		iov_[2];
+
 };
 
 #endif /* IOWRAPER_HPP_ */

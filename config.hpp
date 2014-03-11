@@ -17,7 +17,13 @@
 #define MAX_LINE		200
 #define IOV_COUNT		2
 
-#define DOC_ROOT "/home/prehawk/www"
+
+
+
+
+#define HOME_DIR 		"/home/prehawk/www/News"
+#define PAGE_404		"/home/prehawk/www/404"
+
 
 class A{
 
