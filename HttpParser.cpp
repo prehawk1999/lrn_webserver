@@ -210,12 +210,13 @@ void HttpParser::post(){
 }
 
 void HttpParser::writeResponse(){
+
 	out_.flags(std::ios_base::unitbuf);
 	stringstream strRes("");
 	strRes << m_version << " ";
 	switch(m_status){
 	case _100:
-		strRes << 100 << " continue\r\n";
+		strRes << 100 << " Continue\r\n";
 		break;
 	case _200:
 		strRes << 200 << " OK\r\n";
@@ -236,12 +237,11 @@ void HttpParser::writeResponse(){
 
 	strRes << "Content-Length: " << m_file_stat.st_size << "\r\n";
 
-	strRes << "Connection: " << ((m_conn == CLOSE)?"close":"keep-alive") << "\r\n";
+	strRes << "Connection: " << ((m_conn == CLOSE)?"close":"CLOSE") << "\r\n"; // a strange bug?
 
 	strRes << "\r\n";
 
 	char * res = const_cast<char *>(strRes.str().c_str());
-
 	m_iov.iov_base = res;
 	m_iov.iov_len  = strlen(res);
 	out_.write((const char *)&m_iov, sizeof m_iov);
@@ -251,6 +251,8 @@ void HttpParser::writeResponse(){
 	out_.write((const char *)&m_iov, sizeof m_iov);
 
 	out_ << 0;
+	out_.clear();
+
     if( m_file_addr )
     {
         munmap( m_file_addr, m_file_stat.st_size );

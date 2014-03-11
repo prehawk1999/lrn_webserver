@@ -85,8 +85,8 @@ struct SendHandler{
     {
     	// "cout << 0;"  to indicate the end of input, and send the iovec.
     	if( *(s + pos_) == 0x30 ){
-    		int bytes;
-    		bytes = writev(sockfd_, iov_, iovc_);
+    		pos_ = 0;
+    		int bytes = writev(sockfd_, iov_, iovc_);
     		return bytes;
     	}
     	else{
@@ -127,7 +127,6 @@ private:
 	int 				sockfd_;
 	std::streamsize 	pos_;
 	int					iovc_;
-	char *				test[10];
     struct iovec  		iov_[2];
 
 };
