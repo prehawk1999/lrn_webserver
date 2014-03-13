@@ -87,7 +87,7 @@ struct SendHandler{
 				ret = writev(sockfd_, iov_, iovc_);
 				bytes_ -= ret;
 				if(bytes_ <= 0){
-					bytes_ = 0;
+					clear();
 					return bytes_;
 				}
     		}
@@ -127,10 +127,12 @@ struct SendHandler{
 	}
 
 private:
+	void clear(){pos_ = 0; iovc_ = 0;bytes_ = 0;}
+private:
 	int 				sockfd_;
 	std::streamsize 	pos_;					// used to specify the end of user input
 	int					iovc_;
-    struct iovec  		iov_[3];
+    struct iovec  		iov_[2];
     ssize_t				bytes_;					// bytes to send
 
 };

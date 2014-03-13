@@ -191,9 +191,7 @@ bool HttpParser::writeResponse(){
 		return true;
 	}
 
-
-
-	out_.clear();
+	response_.str("");
 
     if( m_file_addr )
     {
@@ -265,7 +263,9 @@ void HttpParser::parse(){
     	}//switch
     	setHttpState();
     }
-    cout << endl;
+    cout << "!<end>!" << endl;
+    in_.clear();
+    in_.seekg(0);
 }
 
 void HttpParser::post(){
