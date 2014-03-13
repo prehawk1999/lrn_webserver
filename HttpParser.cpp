@@ -59,20 +59,14 @@ void HttpParser::clearStates(){
 void HttpParser::process(int tid){
 
 	parse();
-	post();
 	fd_mod_out(m_epollfd, sockfd_);
 }
 
 void HttpParser::response(){
 
-	if(writeResponse()){
-		fd_mod_in(m_epollfd, sockfd_);
-	}
-	else{
-		clearStates();
-		fd_mod_out(m_epollfd, sockfd_);
-	}
-
+	post();
+	clearStates();
+	fd_mod_out(m_epollfd, sockfd_);
 }
 
 void HttpParser::switchLine(){
@@ -170,36 +164,6 @@ void HttpParser::setHttpState(){
 	}
 }
 
-bool HttpParser::writeResponse(){
-
-	char * res = const_cast<char *>(response_.str().c_str());
-	ssize_t reslen = strlen(res);
-	if(reslen == 0){
-		return true;
-	}
-	else{
-		out_.flags(std::ios_base::unitbuf);
-		m_iov.iov_base = res;
-		m_iov.iov_len  = reslen;
-		out_.write((const char *)&m_iov, sizeof m_iov);
-
-		m_iov.iov_base = m_file_addr;
-		m_iov.iov_len = m_file_stat.st_size;
-		out_.write((const char *)&m_iov, sizeof m_iov);
-
-		out_ << 0;
-		return true;
-	}
-
-	response_.str("");
-
-    if( m_file_addr )
-    {
-        munmap( m_file_addr, m_file_stat.st_size );
-        m_file_addr = 0;
-    }
-}
-
 void HttpParser::setFileStat(){
 
 	if(m_url_file != ""){
@@ -263,44 +227,67 @@ void HttpParser::parse(){
     	}//switch
     	setHttpState();
     }
-    cout << "!<end>!" << endl;
+    cout << endl;
     in_.clear();
     in_.seekg(0);
 }
 
 void HttpParser::post(){
 	setFileStat();
-	response_ << m_version << " ";
+	stringstream res;
+	res << m_version << " ";
 	switch(m_status){
 	case _100:
-		response_ << 100 << " Continue\r\n";
+		res << 100 << " Continue\r\n";
 		break;
 	case _200:
-		response_ << 200 << " OK\r\n";
+		res << 200 << " OK\r\n";
 		break;
 	case _400:
-		response_ << 400 << " Bad Request\r\n";
+		res << 400 << " Bad Request\r\n";
 		break;
 	case _403:
-		response_ << 403 << " Forbidden\r\n";
+		res << 403 << " Forbidden\r\n";
 		break;
 	case _404:
-		response_ << 404 << " Not Found\r\n";
+		res << 404 << " Not Found\r\n";
 		break;
 	case _500:
-		response_ << 500 << " Internal Error\r\n";
+		res << 500 << " Internal Error\r\n";
 		break;
 	}
 
-	response_ << "Content-Length: " << m_file_stat.st_size << "\r\n";
+	res << "Content-Length: " << m_file_stat.st_size << "\r\n";
 
-	response_ << "Connection: ";
+	res << "Connection: ";
 	if(m_conn == CLOSE){
-		response_ << "close\r\n";
+		res << "close\r\n";
 	}
 	else{
-		response_ << "keep-alive\r\n" << "Keep-Alive: " << 86400 << "\r\n";
+		res << "keep-alive\r\n" << "Keep-Alive: " << 86400 << "\r\n";
 	}
 
-	response_ << "\r\n";
+	res << "\r\n";
+
+	char strRes[256];
+	memset(strRes, '\0', 256);
+	res.getline(strRes, 100, '\0');
+	ssize_t reslen = strlen(strRes);
+
+	out_.flags(std::ios_base::unitbuf);
+	m_iov.iov_base = strRes;
+	m_iov.iov_len  = reslen;
+	out_.write((const char *)&m_iov, sizeof m_iov);
+
+	m_iov.iov_base = m_file_addr;
+	m_iov.iov_len = m_file_stat.st_size;
+	out_.write((const char *)&m_iov, sizeof m_iov);
+
+	out_ << 0;
+
+    if( m_file_addr )
+    {
+        munmap( m_file_addr, m_file_stat.st_size );
+        m_file_addr = 0;
+    }
 }

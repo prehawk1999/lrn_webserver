@@ -85,10 +85,15 @@ struct SendHandler{
     		int ret;
     		while(true){  // loop in the main thread, may cause efficiency reduce
 				ret = writev(sockfd_, iov_, iovc_);
-				bytes_ -= ret;
-				if(bytes_ <= 0){
-					clear();
-					return bytes_;
+				if(ret == -1){
+					return -1;
+				}
+				else{
+					bytes_ -= ret;
+					if(bytes_ <= 0){
+						clear();
+						return bytes_;
+					}
 				}
     		}
     	}
