@@ -15,7 +15,8 @@ HttpParser::HttpParser(int connfd):
 	 wordst_(W_TAG),
 	 linest_(L_REQ),
 	 word_(),
-	 contentcount_(0)
+	 wordcount_(0),
+	 response_()
 {
 	fd_add(m_epollfd, sockfd_);
 
@@ -29,7 +30,8 @@ HttpParser::HttpParser(HttpParser * const & h):
 	 wordst_(h->wordst_),
 	 linest_(h->linest_),
 	 word_(),
-	 contentcount_(0)
+	 wordcount_(0),
+	 response_()
 {
 	fd_add(m_epollfd, sockfd_);
 }
@@ -37,8 +39,6 @@ HttpParser::HttpParser(HttpParser * const & h):
 HttpParser::~HttpParser(){}
 
 void HttpParser::clearStates(){
-
-
 
 	//request
 	m_method = GET;
@@ -59,17 +59,24 @@ void HttpParser::clearStates(){
 void HttpParser::process(int tid){
 
 	parse();
+	post();
 	fd_mod_out(m_epollfd, sockfd_);
 }
 
 void HttpParser::response(){
 
-	post();
-	fd_mod_in(m_epollfd, sockfd_);
+	if(writeResponse()){
+		fd_mod_in(m_epollfd, sockfd_);
+	}
+	else{
+		clearStates();
+		fd_mod_out(m_epollfd, sockfd_);
+	}
+
 }
 
 void HttpParser::switchLine(){
-	contentcount_ = 0;
+	wordcount_ = 0;
 	if(word_ == "GET"){
 		linest_ = L_REQ;
 		m_method = GET;
@@ -98,11 +105,11 @@ void HttpParser::switchLine(){
 
 void HttpParser::initStates(){
 
-	++contentcount_;
+	++wordcount_;
 	switch(linest_){
 		case L_REQ:
 		{
-			if(contentcount_ == 1){
+			if(wordcount_ == 1){
 				m_url = word_;
 				if(m_url != "/"){
 					m_url_file = home_dir + m_url;
@@ -111,7 +118,7 @@ void HttpParser::initStates(){
 					m_url_file = home_dir + "/index";
 				}
 			}
-			else if(contentcount_ == 2){
+			else if(wordcount_ == 2){
 				m_version = word_;
 			}
 			break;
@@ -163,6 +170,66 @@ void HttpParser::setHttpState(){
 	}
 }
 
+bool HttpParser::writeResponse(){
+
+	char * res = const_cast<char *>(response_.str().c_str());
+	ssize_t reslen = strlen(res);
+	if(reslen == 0){
+		return true;
+	}
+	else{
+		out_.flags(std::ios_base::unitbuf);
+		m_iov.iov_base = res;
+		m_iov.iov_len  = reslen;
+		out_.write((const char *)&m_iov, sizeof m_iov);
+
+		m_iov.iov_base = m_file_addr;
+		m_iov.iov_len = m_file_stat.st_size;
+		out_.write((const char *)&m_iov, sizeof m_iov);
+
+		out_ << 0;
+		return true;
+	}
+
+
+
+	out_.clear();
+
+    if( m_file_addr )
+    {
+        munmap( m_file_addr, m_file_stat.st_size );
+        m_file_addr = 0;
+    }
+}
+
+void HttpParser::setFileStat(){
+
+	if(m_url_file != ""){
+		if( stat(m_url_file.c_str(), &m_file_stat) < 0){
+			m_status = _404;
+			m_url_file = page_404;
+			stat(m_url_file.c_str(), &m_file_stat);
+		}
+
+		if( ! ( m_file_stat.st_mode & S_IROTH ) ){
+			m_status = _403;
+			return;
+		}
+
+		if(S_ISDIR( m_file_stat.st_mode )){
+			m_status  = _400;
+			return;
+		}
+	    int fd = open( m_url_file.c_str(), O_RDONLY );
+	    m_file_addr = ( char* )mmap( 0, m_file_stat.st_size, PROT_READ, MAP_PRIVATE, fd, 0 );
+	    close( fd );
+		m_status = _200;
+	}
+	else{
+		m_status = _500;
+	}
+}
+
 void HttpParser::parse(){
 
     while(in_ >> word_){
@@ -201,89 +268,39 @@ void HttpParser::parse(){
     cout << endl;
 }
 
-
-
 void HttpParser::post(){
-
 	setFileStat();
-	writeResponse();
-}
-
-void HttpParser::writeResponse(){
-
-	out_.flags(std::ios_base::unitbuf);
-	stringstream strRes("");
-	strRes << m_version << " ";
+	response_ << m_version << " ";
 	switch(m_status){
 	case _100:
-		strRes << 100 << " Continue\r\n";
+		response_ << 100 << " Continue\r\n";
 		break;
 	case _200:
-		strRes << 200 << " OK\r\n";
+		response_ << 200 << " OK\r\n";
 		break;
 	case _400:
-		strRes << 400 << " Bad Request\r\n";
+		response_ << 400 << " Bad Request\r\n";
 		break;
 	case _403:
-		strRes << 403 << " Forbidden\r\n";
+		response_ << 403 << " Forbidden\r\n";
 		break;
 	case _404:
-		strRes << 404 << " Not Found\r\n";
+		response_ << 404 << " Not Found\r\n";
 		break;
 	case _500:
-		strRes << 500 << " Internal Error\r\n";
+		response_ << 500 << " Internal Error\r\n";
 		break;
 	}
 
-	strRes << "Content-Length: " << m_file_stat.st_size << "\r\n";
+	response_ << "Content-Length: " << m_file_stat.st_size << "\r\n";
 
-	strRes << "Connection: " << ((m_conn == CLOSE)?"close":"CLOSE") << "\r\n"; // a strange bug?
-
-	strRes << "\r\n";
-
-	char * res = const_cast<char *>(strRes.str().c_str());
-	m_iov.iov_base = res;
-	m_iov.iov_len  = strlen(res);
-	out_.write((const char *)&m_iov, sizeof m_iov);
-
-	m_iov.iov_base = m_file_addr;
-	m_iov.iov_len = m_file_stat.st_size;
-	out_.write((const char *)&m_iov, sizeof m_iov);
-
-	out_ << 0;
-	out_.clear();
-
-    if( m_file_addr )
-    {
-        munmap( m_file_addr, m_file_stat.st_size );
-        m_file_addr = 0;
-    }
-}
-
-void HttpParser::setFileStat(){
-
-	if(m_url_file != ""){
-		if( stat(m_url_file.c_str(), &m_file_stat) < 0){
-			m_status = _404;
-			m_url_file = page_404;
-			stat(m_url_file.c_str(), &m_file_stat);
-		}
-
-		if( ! ( m_file_stat.st_mode & S_IROTH ) ){
-			m_status = _403;
-			return;
-		}
-
-		if(S_ISDIR( m_file_stat.st_mode )){
-			m_status  = _400;
-			return;
-		}
-	    int fd = open( m_url_file.c_str(), O_RDONLY );
-	    m_file_addr = ( char* )mmap( 0, m_file_stat.st_size, PROT_READ, MAP_PRIVATE, fd, 0 );
-	    close( fd );
-		m_status = _200;
+	response_ << "Connection: ";
+	if(m_conn == CLOSE){
+		response_ << "close\r\n";
 	}
 	else{
-		m_status = _500;
+		response_ << "keep-alive\r\n" << "Keep-Alive: " << 86400 << "\r\n";
 	}
+
+	response_ << "\r\n";
 }

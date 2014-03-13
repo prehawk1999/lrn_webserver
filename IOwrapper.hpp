@@ -25,22 +25,19 @@ struct RecvHandler{
 	typedef io::seekable_device_tag 	category;
 
 	RecvHandler(int sockfd):
-		sockfd_(sockfd), pos_(0){}
+		sockfd_(sockfd), bytes_(0){}
 
 	std::streamsize read(char_type * s, std::streamsize n)
 	{
-		int bytes;
-		bytes = recv(sockfd_, s + pos_, n - pos_, 0);
-		if(bytes == -1){
-			return -1;
+		int ret = recv(sockfd_, s + bytes_, n - bytes_, 0);
+		if(ret == -1){
+			return 0;
 		}
-		else{
-			pos_ += bytes;
-			return bytes;
-		}
+		bytes_ += ret;
+		return bytes_;
 	}
 
-    std::streamsize write(const char_type* s, std::streamsize n){ }
+    std::streamsize write(const char_type* s, std::streamsize n){return 0;}
 
 	std::streampos seek(io::stream_offset off, std::ios_base::seekdir way )
 	{
@@ -52,7 +49,7 @@ struct RecvHandler{
 			pNewPos = 0;
 			break;
 		case std::ios_base::cur:
-			pNewPos = pos_;
+			pNewPos = bytes_;
 			break;
 		case std::ios_base::end: // should not be used
 			pNewPos = MAX_BUF;
@@ -63,13 +60,13 @@ struct RecvHandler{
 		if(pNewPos > MAX_BUF)
 			throw std::ios_base::failure("bad seek offset");
 
-		pos_ = pNewPos;
-		return pos_;
+		bytes_ = pNewPos;
+		return bytes_;
 	}
 
 private:
 	int 				sockfd_;
-	std::streamsize 	pos_;
+	std::streamsize 	bytes_;
 };
 
 struct SendHandler{
@@ -77,24 +74,30 @@ struct SendHandler{
 	typedef io::seekable_device_tag 	category;
 
 	SendHandler(int sockfd):
-		sockfd_(sockfd), pos_(0), iovc_(0){}
+		sockfd_(sockfd), pos_(0), iovc_(0), bytes_(0){}
 
-	std::streamsize read(char_type * s, std::streamsize n){}
+	std::streamsize read(char_type * s, std::streamsize n){return 0;}
 
     std::streamsize write(const char_type * s, std::streamsize n)
     {
     	// "cout << 0;"  to indicate the end of input, and send the iovec.
     	if( *(s + pos_) == 0x30 ){
-    		pos_ = 0;
-    		int bytes = writev(sockfd_, iov_, iovc_);
-    		return bytes;
+    		int ret;
+    		while(true){  // loop in the main thread, may cause efficiency reduce
+				ret = writev(sockfd_, iov_, iovc_);
+				bytes_ -= ret;
+				if(bytes_ <= 0){
+					bytes_ = 0;
+					return bytes_;
+				}
+    		}
     	}
     	else{
     		iov_[iovc_++] = *( (const iovec *)(s + pos_) );
     		pos_ += sizeof(iovec);
+    		bytes_ += iov_[iovc_ - 1].iov_len;
     		return 0;
     	}
-
 
     }
 
@@ -125,9 +128,10 @@ struct SendHandler{
 
 private:
 	int 				sockfd_;
-	std::streamsize 	pos_;
+	std::streamsize 	pos_;					// used to specify the end of user input
 	int					iovc_;
-    struct iovec  		iov_[2];
+    struct iovec  		iov_[3];
+    ssize_t				bytes_;					// bytes to send
 
 };
 

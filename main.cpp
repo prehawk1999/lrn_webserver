@@ -18,7 +18,7 @@
 int main(int argc, char * argv[])
 {
 
-	WebServer<HttpParser> wb = WebServer<HttpParser>("127.0.0.1", 6543, 2, 10000);
+	WebServer<HttpParser> wb = WebServer<HttpParser>("127.0.0.1", 6543, 1, 10000);
 	wb.run();
 
 	int i;

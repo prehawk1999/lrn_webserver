@@ -67,39 +67,55 @@ private:
 	void setHttpState();
 
 	void post();
-	void writeResponse();
+	bool writeResponse();
 	void setFileStat();
 private:
+	//internal socket descritor
 	int							sockfd_;
+
+	//receive handler
 	io::stream<RecvHandler> 	in_;
+
+	//send handler
 	io::stream<SendHandler>		out_;
+
+	//HTTP request newline flag
 	bool						isNewLine_;
+
+	//state of current looping word
     WORD_STATE 					wordst_;
+
+    //state of line
     LINE_STATE					linest_;
+
+    //current word
     string						word_;
-    int							contentcount_;
+
+    //word no. in one line
+    int							wordcount_;
+
+    //HTTP response header
+    stringstream				response_;
 
 private:
 
-	//request
+	//request fields
 	METHOD			m_method;
 	string			m_url;
-	string			m_version; //HTTP1.1
+	string			m_version;
 
 	string			m_agent;
 
 	string			m_host;
 	CONNECTION		m_conn;
 
-	//response
+	//response fields
 	HTTP_STATUS		m_status;
 	string			m_contenttype;
 	string			m_url_file;
 	struct stat		m_file_stat;
 	char *			m_file_addr;
 
-
-	struct iovec	m_iv[2];
 	struct iovec  	m_iov;
 };
 
