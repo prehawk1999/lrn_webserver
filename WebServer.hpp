@@ -36,7 +36,10 @@ namespace ws{
 using namespace ws;
 
 
-//T is the type of request, that can be push to request queue.
+// T is the type of request, whose ptr form can be push to request queue.
+// *MUST* implement process();  response(); destroy(); method by T class.
+// *SHOULD HAVE* m_epollfd static member.
+// main thread.
 template<typename T>
 class WebServer
 {
@@ -53,8 +56,8 @@ public:
 private:
 	void loopwait();
 private:
-	threadpool< req_t > m_threadpool;
-	reqpool_t m_reqpool;
+	threadpool< req_t > 		m_threadpool;
+	reqpool_t 					m_reqpool;
 
 private:
 	int m_listenfd;

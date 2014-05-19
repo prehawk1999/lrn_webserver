@@ -82,23 +82,24 @@ struct SendHandler{
     {
     	// "cout << 0;"  to indicate the end of input, and send the iovec.
     	if( *(s + pos_) == 0x30 ){
+    		int bytes_recorded = bytes_;
     		int ret;
     		while(true){  // loop in the main thread, may cause efficiency reduce
 				ret = writev(sockfd_, iov_, iovc_);
 				if(ret == -1){
-					return -1;
+					return -1;					// eof,
 				}
 				else{
 					bytes_ -= ret;
 					if(bytes_ <= 0){
 						clear();
-						return bytes_;
+						return bytes_recorded;			//	return bytes that have written.
 					}
 				}
     		}
     	}
     	else{
-    		iov_[iovc_++] = *( (const iovec *)(s + pos_) );
+    		iov_[iovc_++] = *( reinterpret_cast<const iovec *>(s + pos_) );
     		pos_ += sizeof(iovec);
     		bytes_ += iov_[iovc_ - 1].iov_len;
     		return 0;
@@ -132,7 +133,11 @@ struct SendHandler{
 	}
 
 private:
-	void clear(){pos_ = 0; iovc_ = 0;bytes_ = 0;}
+	void clear(){
+		pos_ = 0;
+		iovc_ = 0;
+		bytes_ = 0;
+	}
 private:
 	int 				sockfd_;
 	std::streamsize 	pos_;					// used to specify the end of user input

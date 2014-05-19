@@ -4,21 +4,21 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 CPP_SRCS += \
-../HttpParser.cpp \
+../HttpRequest.cpp \
 ../Request.cpp \
 ../heaptimer.cpp \
 ../main.cpp \
 ../utils.cpp 
 
 OBJS += \
-./HttpParser.o \
+./HttpRequest.o \
 ./Request.o \
 ./heaptimer.o \
 ./main.o \
 ./utils.o 
 
 CPP_DEPS += \
-./HttpParser.d \
+./HttpRequest.d \
 ./Request.d \
 ./heaptimer.d \
 ./main.d \

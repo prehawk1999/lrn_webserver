@@ -22,6 +22,8 @@ template< typename T>
 class threadpool
 {
 public:
+	typedef std::list<T>							reql_t;
+
 	threadpool(int threadnum = 1, size_t queuelen = 10000);
 	~threadpool();
 	bool append(T request);
@@ -34,16 +36,16 @@ private:
 	static void * worker(void * arg);
 
 private:
-	int m_threadnum;
-	size_t m_max_reqnum;
+	int 			m_threadnum;
+	size_t 			m_max_reqnum;
 
 private:
-	sem m_queuestat;		//seems that it's used to prevent dead lock
-	locker m_queuelocker;
-	locker m_worklocker;
-	pthread_t * pth_array;
-	std::list<T> m_req_list;
-	bool m_stop;
+	sem 			m_queuestat;		//seems that it's used to prevent dead lock
+	locker 			m_queuelocker;
+	locker 			m_worklocker;
+	pthread_t * 	pth_array;			//pthread_create need native pointer, boost::shared_ptr is not avail
+	reql_t 			m_req_list;
+	bool 			m_stop;
 };
 
 template<typename T>
@@ -59,11 +61,11 @@ threadpool<T>::threadpool(int threadnum, size_t queuelen):
 	}
 	m_worklocker.lock();
 	for(int i=0; i<threadnum; ++i){
-		if(pthread_create(pth_array + i, NULL, worker, this) != 0){
+		if( pthread_create( pth_array + i, NULL, worker, this ) != 0 ){
 			delete [] pth_array;
 			throw std::exception();
 		}
-		if(pthread_detach( pth_array[i]) ){
+		if( pthread_detach( pth_array[i] ) ){
 			delete [] pth_array;
 			throw std::exception();
 		}

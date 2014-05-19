@@ -24,6 +24,9 @@
 #include <time.h>
 
 class TimerComp;
+
+
+
 //计时器单元类，
 class timer_unit{
 

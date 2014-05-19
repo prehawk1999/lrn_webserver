@@ -5,7 +5,7 @@
  *      Author: prehawk
  */
 #include "WebServer.hpp"
-#include "HttpParser.h"
+#include "HttpRequest.h"
 #include "Request.h"
 #include "IOwrapper.hpp"
 
@@ -29,6 +29,6 @@ public:
 
 int main(int argc, char * argv[])
 {
-	WebServer<HttpParser> wb = WebServer<HttpParser>("127.0.0.1", 6543, 4, 10000);
+	WebServer<HttpRequest> wb = WebServer<HttpRequest>("127.0.0.1", 8080, 4, 10000);
 	wb.run();
 }

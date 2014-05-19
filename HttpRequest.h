@@ -41,7 +41,7 @@ const string home_dir(HOME_DIR);
 const string page_404(PAGE_404);
 
 
-class HttpParser: public Request
+class HttpRequest: public Request
 {
 	enum REQ_STATE{REQ_OK, REQ_WAIT, REQ_BAD};
 	enum WORD_STATE{W_TAG, W_CONTENT, W_BAD };
@@ -51,12 +51,13 @@ class HttpParser: public Request
 	enum HTTP_STATUS{_100, _200, _400, _403, _404, _500};
 
 public:
-	HttpParser(int connfd);
-	HttpParser(HttpParser * const & h);
-	~HttpParser();
+	HttpRequest(int connfd);
+	HttpRequest(HttpRequest * const & h);
+	~HttpRequest();
 
 	void process(int tid); //call iowrapper to read a complete line, then fill members.
 	void response();
+	void destroy();
 
 private:
 	void clearStates();
@@ -67,7 +68,8 @@ private:
 	void setHttpState();
 
 	void post();
-	bool writeResponse();
+	void writeResponse(stringstream & ss, char * file_addr, ssize_t file_size);
+	void writeHeader();
 	void setFileStat();
 private:
 	//internal socket descritor

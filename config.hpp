@@ -8,9 +8,9 @@
 #ifndef CONFIG_HPP_
 #define CONFIG_HPP_
 
-#define MAX_FD 65536
-#define MAX_USER 10000
-#define MAX_EVENTS 10000
+#define MAX_FD 			65536
+#define MAX_USER 		10000
+#define MAX_EVENTS		10000
 
 
 #define MAX_BUF 		40960
@@ -21,7 +21,7 @@
 
 
 
-#define HOME_DIR 		"www/News"
+#define HOME_DIR 		"www/guokr"
 #define PAGE_404		"www/404"
 
 

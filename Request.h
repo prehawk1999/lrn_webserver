@@ -38,9 +38,9 @@ public:
 	virtual ~Request();
 
 	void init(int connfd );
-	void process(int tid);
-	void response();
-	void destroy();
+	virtual void process(int tid) = 0; // better invoke fd_mod_out(m_epollfd, sockfd_); at the end
+	virtual void response() = 0;	   // // better invoke fd_mod_in(m_epollfd, sockfd_); at the end
+	virtual void destroy() = 0;
 
 protected:
 	void zerobuffer();
@@ -48,7 +48,6 @@ protected:
 	int sockfd_;
 
 };
-
 
 
 #endif /* CLIENT_H_ */

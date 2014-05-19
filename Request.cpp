@@ -19,31 +19,4 @@ Request::~Request(){}
 
 
 
-void Request::init(int connfd ){
-
-	sockfd_ = connfd;
-	zerobuffer();
-	fd_add(m_epollfd, sockfd_);
-
-}
-
-void Request::zerobuffer(){
-
-
-}
-
-void Request::process(int tid){
-
-	fd_mod_out(m_epollfd, sockfd_);
-}
-
-void Request::response(){
-
-
-	fd_mod_in(m_epollfd, sockfd_);
-}
-
-void Request::destroy(){
-
-}
 

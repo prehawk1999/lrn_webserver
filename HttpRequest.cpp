@@ -4,10 +4,10 @@
  *  Created on: Feb 27, 2014
  *      Author: prehawk
  */
-#include "HttpParser.h"
+#include "HttpRequest.h"
 
 
-HttpParser::HttpParser(int connfd):
+HttpRequest::HttpRequest(int connfd):
 	 sockfd_(connfd),
 	 in_(connfd),
 	 out_(connfd),
@@ -22,7 +22,7 @@ HttpParser::HttpParser(int connfd):
 
 }
 
-HttpParser::HttpParser(HttpParser * const & h):
+HttpRequest::HttpRequest(HttpRequest * const & h):
 	 sockfd_(h->sockfd_),
 	 in_(h->sockfd_),
 	 out_(h->sockfd_),
@@ -36,14 +36,14 @@ HttpParser::HttpParser(HttpParser * const & h):
 	fd_add(m_epollfd, sockfd_);
 }
 
-HttpParser::~HttpParser(){}
+HttpRequest::~HttpRequest(){}
 
-void HttpParser::clearStates(){
+void HttpRequest::clearStates(){
 
 	//request
 	m_method = GET;
 	m_url = "";
-	m_version = "HTTP1.1"; //HTTP1.1
+	m_version = "HTTP1.1";
 
 	m_agent = "";
 
@@ -56,20 +56,27 @@ void HttpParser::clearStates(){
 	m_url_file = "";
 }
 
-void HttpParser::process(int tid){
-
-	parse();
-	fd_mod_out(m_epollfd, sockfd_);
+void HttpRequest::destroy(){
 }
 
-void HttpParser::response(){
+// invoke by the threads in the threadpool. *MUST BE* implemented.
+void HttpRequest::process(int tid){
+
+	cout << "**Thread no. " << tid  << " is processing.**" << endl;
+	parse();
+	fd_mod_out(m_epollfd, sockfd_);		// tag input to be avaliable.
+}
+
+
+//invoke by the main thread, that is WebServer .*MUST BE* implemented.
+void HttpRequest::response(){
 
 	post();
-	clearStates();
-	fd_mod_out(m_epollfd, sockfd_);
+	cout << "**response has been sent.**" << endl;
+	fd_mod_in(m_epollfd, sockfd_);		// tag output to be avaliable.
 }
 
-void HttpParser::switchLine(){
+void HttpRequest::switchLine(){
 	wordcount_ = 0;
 	if(word_ == "GET"){
 		linest_ = L_REQ;
@@ -97,7 +104,7 @@ void HttpParser::switchLine(){
 	}
 }
 
-void HttpParser::initStates(){
+void HttpRequest::initStates(){
 
 	++wordcount_;
 	switch(linest_){
@@ -143,7 +150,7 @@ void HttpParser::initStates(){
 	}
 }
 
-void HttpParser::setHttpState(){
+void HttpRequest::setHttpState(){
 
 	switch(wordst_){
 		case W_TAG:
@@ -164,35 +171,8 @@ void HttpParser::setHttpState(){
 	}
 }
 
-void HttpParser::setFileStat(){
 
-	if(m_url_file != ""){
-		if( stat(m_url_file.c_str(), &m_file_stat) < 0){
-			m_status = _404;
-			m_url_file = page_404;
-			stat(m_url_file.c_str(), &m_file_stat);
-		}
-
-		if( ! ( m_file_stat.st_mode & S_IROTH ) ){
-			m_status = _403;
-			return;
-		}
-
-		if(S_ISDIR( m_file_stat.st_mode )){
-			m_status  = _400;
-			return;
-		}
-	    int fd = open( m_url_file.c_str(), O_RDONLY );
-	    m_file_addr = ( char* )mmap( 0, m_file_stat.st_size, PROT_READ, MAP_PRIVATE, fd, 0 );
-	    close( fd );
-		m_status = _200;
-	}
-	else{
-		m_status = _500;
-	}
-}
-
-void HttpParser::parse(){
+void HttpRequest::parse(){
 
     while(in_ >> word_){
 		int npos = in_.tellg();
@@ -218,7 +198,7 @@ void HttpParser::parse(){
     		case -1: // eof
     			wordst_ = W_BAD;
     			in_.clear();
-    			in_.seekg(npos - len, std::ios_base::beg);
+    			in_.seekg(npos - len, std::ios_base::beg);		//read this word again.
     			break;
     		default:
     			cout << "something bad happened" << endl;
@@ -227,12 +207,14 @@ void HttpParser::parse(){
     	}//switch
     	setHttpState();
     }
-    cout << endl;
     in_.clear();
-    in_.seekg(0);
+    in_.seekg(0, std::ios_base::beg);
+    cout << endl;
 }
 
-void HttpParser::post(){
+void HttpRequest::post(){
+	//cout << "one post" << endl;
+
 	setFileStat();
 	stringstream res;
 	res << m_version << " ";
@@ -269,9 +251,53 @@ void HttpParser::post(){
 
 	res << "\r\n";
 
+	//res is the response head, the others are file bits.
+	writeResponse(res, m_file_addr, m_file_stat.st_size);
+
+    if( m_file_addr )
+    {
+        munmap( m_file_addr, m_file_stat.st_size );
+        m_file_addr = NULL;
+    }
+}
+
+
+void HttpRequest::setFileStat(){
+
+	if(m_url_file != ""){
+		if( stat(m_url_file.c_str(), &m_file_stat) < 0){
+			m_status = _404;
+			m_url_file = page_404;
+			stat(m_url_file.c_str(), &m_file_stat);
+		}
+		else{
+			m_status = _200;
+		}
+
+		if( ! ( m_file_stat.st_mode & S_IROTH ) ){
+			m_status = _403;
+			return;
+		}
+
+//		if(S_ISDIR( m_file_stat.st_mode )){
+//			m_status  = _400;
+//			return;
+//		}
+
+	    int fd = open( m_url_file.c_str(), O_RDONLY );
+	    m_file_addr = ( char* )mmap( 0, m_file_stat.st_size, PROT_READ, MAP_PRIVATE, fd, 0 );
+	    close( fd );
+	}
+	else{
+		m_status = _500;
+	}
+}
+
+void HttpRequest::writeResponse(stringstream & ss, char * file_addr, ssize_t file_size){
+
 	char strRes[256];
 	memset(strRes, '\0', 256);
-	res.getline(strRes, 100, '\0');
+	ss.getline(strRes, 100, '\0');
 	ssize_t reslen = strlen(strRes);
 
 	out_.flags(std::ios_base::unitbuf);
@@ -284,10 +310,6 @@ void HttpParser::post(){
 	out_.write((const char *)&m_iov, sizeof m_iov);
 
 	out_ << 0;
-
-    if( m_file_addr )
-    {
-        munmap( m_file_addr, m_file_stat.st_size );
-        m_file_addr = NULL;
-    }
+	out_.clear();
+	out_.seekp(0, std::ios_base::beg);
 }
