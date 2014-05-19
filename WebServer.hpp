@@ -98,9 +98,6 @@ WebServer<T>::WebServer(const char * ip, int port, int threadnum, int reqqueue):
     fd_add(m_epollfd, m_listenfd);
     T::m_epollfd = m_epollfd;
 
-//    for( int i=0; i!=MAX_USER; ++i){
-//    	m_reqpool[i] = make_shared<T>( new T() );
-//    }
 }
 
 template<typename T>

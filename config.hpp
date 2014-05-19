@@ -21,12 +21,9 @@
 
 
 
-#define HOME_DIR 		"/home/prehawk/www/News"
-#define PAGE_404		"/home/prehawk/www/404"
+#define HOME_DIR 		"www/News"
+#define PAGE_404		"www/404"
 
 
-class A{
-
-};
 
 #endif /* CONFIG_HPP_ */

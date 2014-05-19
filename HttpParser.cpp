@@ -288,6 +288,6 @@ void HttpParser::post(){
     if( m_file_addr )
     {
         munmap( m_file_addr, m_file_stat.st_size );
-        m_file_addr = 0;
+        m_file_addr = NULL;
     }
 }

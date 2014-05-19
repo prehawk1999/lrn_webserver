@@ -25,10 +25,10 @@ public:
 	threadpool(int threadnum = 1, size_t queuelen = 10000);
 	~threadpool();
 	bool append(T request);
-	inline void run(){m_worklocker.unlock();}
-	inline int queuesize(){return m_req_list.size();}
-	inline int queuecap(){return m_max_reqnum;}
-	inline int poolsize(){return m_threadnum;}
+	void run(){m_worklocker.unlock();}
+	int queuesize(){return m_req_list.size();}
+	int queuecap(){return m_max_reqnum;}
+	int poolsize(){return m_threadnum;}
 private:
 	void dowork();
 	static void * worker(void * arg);
