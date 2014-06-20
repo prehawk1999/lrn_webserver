@@ -276,7 +276,7 @@ void HttpRequest::setFileStat(){
 
 		if( ! ( m_file_stat.st_mode & S_IROTH ) ){
 			m_status = _403;
-			return;
+			//return;
 		}
 
 //		if(S_ISDIR( m_file_stat.st_mode )){
