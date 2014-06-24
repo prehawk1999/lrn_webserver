@@ -63,7 +63,6 @@ private:
 	int m_epollfd;
 	epoll_event m_events[MAX_EVENTS];
 
-
 };
 
 template<typename T>

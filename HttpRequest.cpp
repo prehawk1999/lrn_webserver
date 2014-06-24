@@ -43,7 +43,6 @@ void HttpRequest::clearStates(){
 	//request
 	m_method = GET;
 	m_url = "";
-	m_version = "HTTP1.1";
 
 	m_agent = "";
 
@@ -71,8 +70,8 @@ void HttpRequest::process(int tid){
 //invoke by the main thread, that is WebServer .*MUST BE* implemented.
 void HttpRequest::response(){
 
-	post();
 	cout << "**response has been sent.**" << endl;
+	post();
 	fd_mod_in(m_epollfd, sockfd_);		// tag output to be avaliable.
 }
 
@@ -191,9 +190,14 @@ void HttpRequest::parse(){
     			break;
     		case 0xd: // \r
     		case 0xa: // \n
-    			cout << word_ << endl;
-    			wordst_ = W_CONTENT;
-    			isNewLine_ = true;
+    			if(!isNewLine_){
+					cout << word_ << endl;
+					wordst_ = W_CONTENT;
+					isNewLine_ = true;
+    			}
+    			else{
+    				cout << "Incomplete header!" << endl;
+    			}
     			break;
     		case -1: // eof
     			wordst_ = W_BAD;
@@ -209,6 +213,10 @@ void HttpRequest::parse(){
     }
     in_.clear();
     in_.seekg(0, std::ios_base::beg);
+    if(m_version != "HTTP/1.1" and m_version  != "HTTP/1.0" ){
+    	m_url_file = "";
+    	cout << "Incomplete header!" << endl;
+    }
     cout << endl;
 }
 

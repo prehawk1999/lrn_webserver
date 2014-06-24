@@ -12,6 +12,6 @@
 
 int main(int argc, char * argv[])
 {
-	WebServer<HttpRequest> wb = WebServer<HttpRequest>("127.0.0.1", 8080, 16, 10000);
+	WebServer<HttpRequest> wb = WebServer<HttpRequest>("127.0.0.1", 8080, 1, 10000);
 	wb.run();
 }
