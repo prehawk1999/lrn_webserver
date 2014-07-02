@@ -38,7 +38,7 @@ public:
 	virtual ~Request();
 
 	void init(int connfd );
-	virtual void process(int tid) = 0; // better invoke fd_mod_out(m_epollfd, sockfd_); at the end
+	virtual void process(unsigned tid, bool isNew) = 0; // better invoke fd_mod_out(m_epollfd, sockfd_); at the end
 	virtual void response() = 0;	   // // better invoke fd_mod_in(m_epollfd, sockfd_); at the end
 	virtual void destroy() = 0;
 

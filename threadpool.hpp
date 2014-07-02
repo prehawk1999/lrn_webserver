@@ -22,11 +22,11 @@ template< typename T>
 class threadpool
 {
 public:
-	typedef std::list<T>							reql_t;
+	typedef std::list< std::pair<T, bool> >							reql_t;
 
 	threadpool(int threadnum = 1, size_t queuelen = 10000);
 	~threadpool();
-	bool append(T request);
+	bool append(T request, bool isNew);
 	void run(){m_worklocker.unlock();}
 	int queuesize(){return m_req_list.size();}
 	int queuecap(){return m_max_reqnum;}
@@ -79,14 +79,14 @@ threadpool<T>::~threadpool(){
 }
 
 template<typename T>
-bool threadpool<T>::append(T request){
+bool threadpool<T>::append(T request, bool isNew){
 
 	m_queuelocker.lock();
 	if(m_req_list.size() > m_max_reqnum){
 		m_queuelocker.unlock();
 		return false;
 	}
-	m_req_list.push_front(request);
+	m_req_list.push_front(std::make_pair(request, isNew));
 	m_queuelocker.unlock();
 	m_queuestat.post();
 	return true;
@@ -106,13 +106,15 @@ void threadpool<T>::dowork()
 			m_queuelocker.unlock();
 			continue;
 		}
-		T request = m_req_list.back();
+		std::pair<T, bool> tmp = m_req_list.back();
+		T request = tmp.first;
+		bool isNew = tmp.second;
 		m_req_list.pop_back();
 		m_queuelocker.unlock();
 		if(!request){
 			continue;
 		}
-		request->process(tid);
+		request->process(tid, isNew);
 	}
 }
 

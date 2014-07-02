@@ -9,8 +9,8 @@
 #define CONFIG_HPP_
 
 #define MAX_FD 			65536
-#define MAX_USER 		10000
-#define MAX_EVENTS		10000
+#define MAX_USER 		65535
+#define MAX_EVENTS		65535
 
 
 #define MAX_BUF 		40960
@@ -18,7 +18,8 @@
 #define IOV_COUNT		2
 
 
-
+#define READ_BUF_SIZE   1024
+#define WRITE_BUF_SIZE  1024
 
 
 #define HOME_DIR 		"www/guokr"

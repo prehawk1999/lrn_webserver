@@ -102,8 +102,7 @@ struct SendHandler{
     		iov_[iovc_++] = *( reinterpret_cast<const iovec *>(s + pos_) );
     		pos_ += sizeof(iovec);
     		bytes_ += iov_[iovc_ - 1].iov_len;
-    		return 0;
-    	}
+    		return 0; }
 
     }
 

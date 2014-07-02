@@ -50,6 +50,7 @@ public:
 public:
 	// @ip address, @port, @thread number create, @max request number.
 	explicit WebServer(const char * ip, int port, int threadnum, int reqqueue);
+	int initialize(const char * ip, int port);
  	~WebServer();
 	void run();
 private:
@@ -73,7 +74,11 @@ WebServer<T>::~WebServer(){
 template<typename T>
 WebServer<T>::WebServer(const char * ip, int port, int threadnum, int reqqueue):
 	m_threadpool( threadpool< req_t >(threadnum, reqqueue) ), m_reqpool(MAX_USER){
+	initialize(ip, port);
+}
 
+template<typename T>
+int WebServer<T>::initialize(const char * ip, int port){
 	m_listenfd = socket(PF_INET, SOCK_STREAM, 0);
 	assert( m_listenfd >= 0);
 
@@ -90,15 +95,16 @@ WebServer<T>::WebServer(const char * ip, int port, int threadnum, int reqqueue):
     ret = bind(m_listenfd, (sockaddr *)&address, sizeof(address));
     assert(ret != -1);
 
-    ret = listen(m_listenfd, 5);
+    ret = listen(m_listenfd, MAX_USER/2);
     assert(ret != -1);
 
     m_epollfd = epoll_create(5);
     assert(m_epollfd != -1);
 
     fd_add(m_epollfd, m_listenfd);
-    T::m_epollfd = m_epollfd;
+    setnonblocking(m_listenfd);
 
+    T::m_epollfd = m_epollfd;
 }
 
 template<typename T>
@@ -111,6 +117,8 @@ void WebServer<T>::run(){
 template<typename T>
 void WebServer<T>::loopwait(){
 	int number;
+	//T * model_T = new T(0);
+	bool newfd = true;
 	while(1){
 		number = epoll_wait(m_epollfd, m_events, MAX_EVENTS, -1);
 		assert(( number >= 0 ) || ( errno == EINTR ));
@@ -122,24 +130,32 @@ void WebServer<T>::loopwait(){
 				sockaddr_in client_addr;
 				socklen_t addr_len = sizeof(client_addr);
 				int connfd = accept(m_listenfd, (sockaddr *)&client_addr, &addr_len);
-				m_reqpool[connfd] = make_shared<T>( new T(connfd) );
+				m_reqpool[connfd] = make_shared<T>(new T(connfd));
+				fd_add(m_epollfd, connfd);
+				setnonblocking(connfd);
+				newfd = true;
 			}
 			else if( m_events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)){
-				m_reqpool[sockfd]->destroy();
+
 			}
 			else if( m_events[i].events & EPOLLIN ){
-				m_threadpool.append( m_reqpool[sockfd] );
+				if(newfd){
+					m_threadpool.append( m_reqpool[sockfd], true);
+					newfd = false;
+				}
+				else{
+					m_threadpool.append( m_reqpool[sockfd], false );
+				}
 			}
 			else if( m_events[i].events & EPOLLOUT ){
-				m_reqpool[sockfd]->response();
+				fd_rmv(m_epollfd, sockfd);
+				close(sockfd);
+				m_reqpool[sockfd].reset();
 			}
 			else{
 				continue;
 			}
-
 		}
-
 	}
-
 }
 #endif /* SERVERIO_H_ */
