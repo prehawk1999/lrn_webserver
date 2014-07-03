@@ -18,7 +18,7 @@ void fd_add(int epollfd, int fd){
 
 	epoll_event events;
 	events.data.fd = fd;
-	events.events = EPOLLIN | EPOLLET | EPOLLRDHUP ;
+	events.events = EPOLLIN | EPOLLET;
 	epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, &events);
 	//setnonblocking(fd);
 }
@@ -28,7 +28,7 @@ void fd_mod(int epollfd, int fd, int ev){
 
 	epoll_event events;
 	events.data.fd = fd;
-	events.events = ev | EPOLLET | EPOLLONESHOT | EPOLLRDHUP;
+	events.events = ev | EPOLLET;
 	epoll_ctl(epollfd, EPOLL_CTL_MOD, fd, &events);
 }
 
@@ -40,6 +40,9 @@ void fd_mod_out(int epollfd, int fd){
 	fd_mod(epollfd, fd, EPOLLOUT);
 }
 
+void fd_mod_hup(int epollfd, int fd){
+	fd_mod(epollfd, fd, EPOLLRDHUP);
+}
 
 void fd_rmv(int epollfd, int fd){
 

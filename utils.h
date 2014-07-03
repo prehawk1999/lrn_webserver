@@ -25,6 +25,8 @@ void fd_mod_in(int epollfd, int fd);
 
 void fd_mod_out(int epollfd, int fd);
 
+void fd_mod_hup(int epollfd, int fd);
+
 void fd_rmv(int epollfd, int fd);
 
 void addsig( int sig, void( handler )(int), bool restart );

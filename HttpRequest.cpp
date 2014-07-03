@@ -9,86 +9,72 @@
 
 int HttpRequest::req_count = 0;
 
-const char * HttpRequest::s_version[] = {"HTTP/1.0","HTTP/1.1"};
-const char * HttpRequest::s_connection[] = {"close", "keep-alive"};
+const char * HttpRequest::s_version[] = {"HTTP/1.0 ","HTTP/1.1 "};
+const char * HttpRequest::s_connection[] = {"close ", "keep-alive "};
 
 const char * HttpRequest::s_line_state[] = {
-		"GET",
-		"Host:",
-		"User-Agent:",
-		"Accept:",
-		"Referer:",
-		"Connection:",
-		"Content-Length:",
-		"Server:"};
+		"GET ",
+		"Host: ",
+		"User-Agent: ",
+		"Accept: ",
+		"Referer: ",
+		"Connection: ",
+		"Content-Length: ",
+		"Date: "};
 
 const char * HttpRequest::s_res_code[]  = {
+		"100 Continue",
 		"200 OK",
 		"400 Bad Request",
 		"404 Not Found",
-		"500 Internal Error"};
+		"500 Internal Error",
+		"505 HTTP Version Not Supported"};
 
-HttpRequest::HttpRequest(int connfd):
-	 sockfd_(connfd),
-	 in_(connfd),
-	 out_(connfd),
-	 isNewLine_(true),
-	 wordst_(W_TAG),
-	 word_(),
-	 wordcount_(0),
-	 response_(),
-	 bytes_recv(-1),
-	 bytes_(0)
-{
-	m_read_buf = new char[READ_BUF_SIZE];
-	req_count += 1;
-	test_count = 0;
-	destroy();
-}
+const char * HttpRequest::s_pages_addr[] = {
+		"404.html",
+		"index.html"};
 
-HttpRequest::HttpRequest(HttpRequest * const & h):
-	 sockfd_(h->sockfd_),
-	 in_(h->sockfd_),
-	 out_(h->sockfd_),
-	 isNewLine_(h->isNewLine_),
-	 wordst_(h->wordst_),
-	 word_(),
-	 wordcount_(0),
-	 response_(),
-	 bytes_recv(-1),
-	 bytes_(0)
+HttpRequest::HttpRequest(int connfd): sockfd_(connfd)
 {
-	m_read_buf = new char[READ_BUF_SIZE];
-	req_count += 1;
-	test_count = 0;
+	m_read_buf 		= new char[READ_BUF_SIZE];
+	loc_time   		= new char[40];
+	IOV_ 		 	= new struct iovec[20];
+	fileSize 		= new char[10];
+	req_count 		+= 1;
 	destroy();
 }
 
 HttpRequest::~HttpRequest(){
 	req_count -= 1;
+	delete [] loc_time;
+	delete [] IOV_;
+	delete [] m_read_buf;
+	delete [] fileSize;
 }
 
-void HttpRequest::clearStates(){
-
-	//request
-	m_method = GET;
-	m_url = "";
-
-	m_agent = "";
-
-	m_host = "";
-	m_conn = CLOSE;
-
-	//response
-	m_status = _100;
-	m_contenttype = "";
-	m_url_file = "";
-}
 
 void HttpRequest::destroy(){
+
+	if(bytes_recv != -1){
+		memset(m_read_buf, '\0', bytes_recv);
+	}
+
+	bytes_send = 0;
+	bytes_recv = -1;
 	RECV_ = R_CLOSE;
 	LINE_ = L_METHOD;
 	ISKEEPALIVE_ = true;
+	RET_CODE_ = _100;
+
+	E = m_read_buf;
+	//if this request have map a real file, then umap it;
+	if(fileAddr){
+        munmap( fileAddr, fileStat.st_size );
+        fileAddr = NULL;
+	}
+
+	//set the return code to 100, just for not parsing empty lines.
+	IOC_ = 0;
 }
 
 
@@ -98,112 +84,107 @@ void HttpRequest::process(unsigned tid, bool isNew){
 	ISNEWCONN_ = isNew;
 	if(ISNEWCONN_){
 		destroy();
-		RECV_ = R_CLOSE;
 		cout << "**Thread no. " << tid << " get a new connection**" << endl;
 	}
 	else{
 		cout << "**Thread no. " << tid << "**" << endl;
-		test_count += 1;
 	}
 
 	// recv sys call. app buffer is m_read_buf;
-	while(bytes_recv != 0){
-		bytes_recv = recv(sockfd_, m_read_buf + bytes_, READ_BUF_SIZE - bytes_, 0);
-		if(bytes_recv == -1){
+	ssize_t bytes = -1;
+	while(bytes != 0){
+		bytes = recv(sockfd_, m_read_buf + bytes_recv, READ_BUF_SIZE - bytes_recv, 0);
+		if(bytes == -1){
 			if(errno == EAGAIN or errno == EWOULDBLOCK){
 				break;
 			}
 		}
-		bytes_ += bytes_recv;
+		bytes_recv += bytes;
 	}
 
 	//start parsing the buffer m_read_buf;
-	while( parseLineLoop() ){}
+	parseLineLoop();
 
 	if(RECV_ == R_BAD){
 		cout << "invalid header!" << endl;
+		fd_mod_out(m_epollfd, sockfd_); // close the peer;
+		RECV_ = R_CLOSE;
 	}
 	else if(RECV_ == R_CLOSE){
-		// do nothing
-		if(!ISKEEPALIVE_){
-			fd_mod_out(m_epollfd, sockfd_); // close the peer;
-		}
-		else{
 
-		}
+		//response only if you meet the \r\n at the end. AND empty request doing nothing.
+		if(RET_CODE_ != _100){
+			response();
+			if(!ISKEEPALIVE_){
+				fd_mod_out(m_epollfd, sockfd_); // close the peer;
+			}
+		}// escape empty lines.
+		destroy();
 	}
-	else{
-		//response();
-		cout << "**response no. " << req_count << "**" << endl;
-	}
-
 
 }
 
 //@return: -1 error, 1 not complete, should be invoked again. 0 end of reading.
+//@set l_startPos as the start of the line, and l_endPos as the end of the line.
 //parse every lines, set whether line is complete and which line it is.
 int HttpRequest::parseLineLoop(){
 
-	// new connection and new request will result in new E an l_startPos;
-	if(RECV_ == R_CLOSE){
-		if(ISNEWCONN_){
-			E = m_read_buf;
-		}
-		else{
-			E = m_read_buf + n_linePos;
-		}
-		l_startPos = E;
-	}
-	else if(RECV_  == R_END){
-		E += 3;
-		l_startPos = E;
-	}
+	while(true){
 
-	//detect if line is invalid or it's an empty line.
-	if(E + 2 > m_read_buf + bytes_){
-		RECV_ = R_BAD;
-		return -1;
-	}
-	else if(*E == '\r' and *(E+1) == '\n'){
-		RECV_ = R_CLOSE;
-		n_linePos = E + 2 - m_read_buf;
-		return 0;
-	}
-
-	// move pointer E to where \r\n is.
-	for(;E + 2 < m_read_buf + bytes_; ++E){
-		if( *(E + 1) == '\r' ){
-			if( *(E + 2) == '\n'){
-				RECV_ = R_END;
-				l_endPos = E;
-				parseLine();
-				break;
+		// new connection and new request will result in new E an l_startPos;
+		if(RECV_ == R_CLOSE){
+			if(ISNEWCONN_){
+				E = m_read_buf;
 			}
 			else{
-				RECV_ = R_BAD;
-				return -1;
+				E = m_read_buf + n_linePos;
+			}
+			l_startPos = E;
+		}
+		else if(RECV_  == R_END){
+			E += 3;
+			l_startPos = E;
+		}
+
+		//detect if line is invalid or it's an empty line.
+		if(*E == '\r' and *(E+1) == '\n'){
+			RECV_ = R_CLOSE;
+			n_linePos = E + 2 - m_read_buf;
+			break;
+		}
+
+		//todo: infinite loop bug!
+		// move pointer E to where \r\n is.
+		for(;E + 2 < m_read_buf + bytes_offset; ++E){
+			if( *(E + 1) == '\r' ){
+				if( *(E + 2) == '\n'){
+					RECV_ = R_END;
+					l_endPos = E;
+					parseLine();
+					break;
+				}
+				else{
+					RECV_ = R_BAD;
+					return -1;
+				}
+			}
+			else {
+				RECV_ = R_OPEN;
 			}
 		}
-		else {
-			RECV_ = R_OPEN;
-		}
+
+		if(E + 3 == m_read_buf + bytes_offset)
+			break; // end of reading.
 	}
-
-	if(E + 3 == m_read_buf + bytes_)
-		return 0; // end of reading.
-	else
-		return 1;
-
+	return 0;
 }
 
 // inside parseLoop(); only called when the line is completed.
 void HttpRequest::parseLine(){
 
-	P = l_startPos;
-
-	getWord(P, 1);
+	getWord(l_startPos, 1);
 	for(int i = L_METHOD; i != L_UNKNOWN; ++i){
-		if(strncmp(s_line_state[i], w_startPos, w_endPos - w_startPos) == 0){
+		if(strncmp(s_line_state[i], w_startPos, w_endPos - w_startPos - 1) == 0){
 			LINE_ = static_cast<LINE_STATE>(i);
 			break;
 		}
@@ -213,9 +194,45 @@ void HttpRequest::parseLine(){
 	switch(LINE_ ){
 
 	case L_METHOD:
-		getValue(fileAddr, 2);
+
+		//if http version is recognized, do parse the path
+		if( cmpValue(s_version[0], 3) == 0 || cmpValue(s_version[1], 3) == 0 ){
+			getValue(fileName, 2);
+
+			if( strcmp(fileName, "") != 0 ){
+
+				//set '/' to '/index.html'
+				if( strcmp(fileName, "/") == 0 ){
+					fileName = s_pages_addr[1];
+				}
+
+				//set 404 file if file not exists or file is a dir.
+				if( stat(fileName, &fileStat) < 0 || S_ISDIR( fileStat.st_mode )){
+					RET_CODE_ = _404;
+					fileName = s_pages_addr[0];
+					stat(fileName, &fileStat);
+				}
+				else{
+					RET_CODE_ = _200;
+				}
+
+			    int fd = open( fileName, O_RDONLY );
+			    fileAddr = ( char* )mmap( 0, fileStat.st_size, PROT_READ, MAP_PRIVATE, fd, 0 );
+			    close( fd );
+			}
+			else{
+				RET_CODE_ = _400;
+				ISKEEPALIVE_ = false;
+			}
+
+		}
+		else{ //if version not recognized.
+			RET_CODE_ = _400;
+			ISKEEPALIVE_ = false;
+		}
 		break;
 	case L_CONNECTION:
+		char * clientConn;
 		getValue(clientConn, 2);
 		if(strncmp(s_connection[0], clientConn, w_endPos - w_startPos) == 0){// get connection
 			ISKEEPALIVE_ = false;
@@ -224,10 +241,28 @@ void HttpRequest::parseLine(){
 			ISKEEPALIVE_ = true;
 		}
 		break;
+	case L_REFERER:
+
+		break;
 	default:
+		//E = m_read_buf;
 		break;
 	}
 
+}
+
+//generate current Date string.
+char * HttpRequest::genDate(){
+	time_t rawtime = time(NULL);
+	ctime_r(&rawtime, loc_time);
+	return loc_time;
+}
+
+//get words and compare the value with specific string.
+int HttpRequest::cmpValue(const char * value, int count){
+	getWord(l_startPos, count);
+	int ret = strncmp(w_startPos, value, strlen(value) - 1);
+	return ret;
 }
 
 //get words into value
@@ -237,23 +272,37 @@ void HttpRequest::getValue(char * & value, int count){
 	strncpy(value, w_startPos, w_endPos - w_startPos);
 }
 
-
 //@set w_startPos, w_endPos
 //move %count% words
-void HttpRequest::getWord(char * p, int count){
+void HttpRequest::getWord(char * pos, int count){
 	for(int i=0; i != count; ++i){
-		w_startPos = p;
-		for(; *p != 0x20 and *p != 0x0; ++p);
+		w_startPos = pos;
+		for(; *pos != 0x20 and *pos != 0x0; ++pos);
 
-		if(*p == 0x0){
-			w_endPos = p - 2 ; // skip normal chars.
+		if(*pos == 0x0){
+			w_endPos = pos - 2 ; // skip normal chars.
 		}
 		else{
-			w_endPos = p;
+			w_endPos = pos;
 		}
 
-		for(; *p == 0x20 and *p != 0x0; ++p); // skip spaces.
+		for(; *pos == 0x20 and *pos != 0x0; ++pos); // skip spaces.
 	}
+}
+
+//add header.
+void HttpRequest::addData(const char * head, size_t size){
+	IOV_[IOC_].iov_base = head ;
+	if(!size){
+		IOV_[IOC_].iov_len	= strlen(head);
+		bytes_send += strlen(head);
+		std::cerr << head;
+	}
+	else{
+		IOV_[IOC_].iov_len  = size;
+		bytes_send += size;
+	}
+	IOC_ += 1;
 }
 
 
@@ -262,199 +311,56 @@ void HttpRequest::response(){
 
 
 
-	cout << "**response has been sent.**" << endl;
-}
+	//line 1: HTTP/1.1 200 OK
+	addData(s_version[0]);
+	addData(s_res_code[RET_CODE_]);
+	addData("\r\n");
 
+	// todo: multipul threads problem.
+	//line 2: Date: dsfsdfsdfoieworfew
+//	addData(s_line_state[L_DATE]);
+//	addData(genDate()); //it contains \r\n inside the date string.
+
+	//line 3: Connection: keep-alive;
+	addData(s_line_state[L_CONNECTION]);
+	addData(s_connection[ISKEEPALIVE_]);
+	addData("\r\n");
+
+	//line final: file
+	if(fileAddr){
+		sprintf(fileSize, "%ld", fileStat.st_size);
+		addData(s_line_state[L_CONLEN]);
+		addData(fileSize);
+		addData("\r\n");
+
+		addData("Content-Type: ");
+		addData("text/html");			//todo: classify types.
+		addData("\r\n");
+
+		addData("\r\n");
+		addData(fileAddr, fileStat.st_size);
+	}
+
+	//line close
+	addData("\r\n");
+
+	int ret;
+	while(true){
+		ret = writev(sockfd_, IOV_, IOC_);
+		assert(ret != -1);
+		bytes_send -= ret;
+		if(bytes_send == 0){
+
+			break;
+		}
+	}
+
+
+	cout << "**response no. " << req_count << "**" << endl;
+}
 
 ///////////////////////////////////////////////
 //					GAP
 ///////////////////////////////////////////////
 
 
-void HttpRequest::switchLine(){
-
-}
-
-void HttpRequest::initStates(){
-
-}
-
-void HttpRequest::setHttpState(){
-
-	switch(wordst_){
-		case W_TAG:
-		{
-			switchLine();
-			break;
-		}
-		case W_CONTENT:
-		{
-			initStates();
-			break;
-		}
-		case W_BAD:
-		{
-			cout << "header is incomplete!" << endl;
-			break;
-		}
-	}
-}
-
-
-
-
-void HttpRequest::parse(){
-	bool CRLF = true;
-    while(in_ >> word_){
-    	CRLF = false;
-		int npos = in_.tellg();
-		int len = word_.length();
-
-    	//Set the WORD_STATE, peek next character to see if the word or line is complete.
-    	char c = in_.peek();
-    	switch( c ){
-    		case 0x20: // space
-    			cout << word_ << " ";
-    			wordst_ = W_CONTENT;
-    			if(isNewLine_){
-    				wordst_ = W_TAG;
-    				isNewLine_ = false;
-    			}
-    			break;
-    		case 0xd: // \r
-    		case 0xa: // \n
-    			if(!isNewLine_){
-					cout << word_ << endl;
-					wordst_ = W_CONTENT;
-					isNewLine_ = true;
-    			}
-    			else{
-    				cout << "Incomplete header!" << endl;
-    			}
-    			break;
-    		case -1: // eof
-    			wordst_ = W_BAD;
-    			in_.clear();
-    			in_.seekg(npos - len, std::ios_base::beg);		//read this word again.
-    			break;
-    		default:
-    			cout << "something bad happened" << endl;
-    			break;
-
-    	}//switch
-    	setHttpState();
-    }
-    in_.clear();
-    in_.seekg(0, std::ios_base::beg);
-    if(m_version != "HTTP/1.1" and m_version  != "HTTP/1.0" ){
-    	m_url_file = "";
-    	cout << "Incomplete header!" << endl;
-    }
-    cout << endl;
-}
-
-void HttpRequest::post(){
-	//cout << "one post" << endl;
-
-	setFileStat();
-	stringstream res;
-	res << m_version << " ";
-	switch(m_status){
-	case _100:
-		res << 100 << " Continue\r\n";
-		break;
-	case _200:
-		res << 200 << " OK\r\n";
-		break;
-	case _400:
-		res << 400 << " Bad Request\r\n";
-		break;
-	case _403:
-		res << 403 << " Forbidden\r\n";
-		break;
-	case _404:
-		res << 404 << " Not Found\r\n";
-		break;
-	case _500:
-		res << 500 << " Internal Error\r\n";
-		break;
-	}
-
-	res << "Content-Length: " << m_file_stat.st_size << "\r\n";
-
-	res << "Connection: ";
-	if(m_conn == CLOSE){
-		res << "close\r\n";
-	}
-	else{
-		res << "keep-alive\r\n" << "Keep-Alive: " << 86400 << "\r\n";
-	}
-
-	res << "\r\n";
-
-	//res is the response head, the others are file bits.
-	writeResponse(res, m_file_addr, m_file_stat.st_size);
-
-    if( m_file_addr )
-    {
-        munmap( m_file_addr, m_file_stat.st_size );
-        m_file_addr = NULL;
-    }
-}
-
-
-void HttpRequest::setFileStat(){
-
-	if(m_url_file != ""){
-		if( stat(m_url_file.c_str(), &m_file_stat) < 0){
-			m_status = _404;
-			m_url_file = page_404;
-			stat(m_url_file.c_str(), &m_file_stat);
-		}
-		else{
-			m_status = _200;
-		}
-
-		if( ! ( m_file_stat.st_mode & S_IROTH ) ){
-			m_status = _403;
-			//return;
-		}
-
-//		if(S_ISDIR( m_file_stat.st_mode )){
-//			m_status  = _400;
-//			return;
-//		}
-
-	    int fd = open( m_url_file.c_str(), O_RDONLY );
-	    m_file_addr = ( char* )mmap( 0, m_file_stat.st_size, PROT_READ, MAP_PRIVATE, fd, 0 );
-	    close( fd );
-	}
-	else{
-		m_status = _500;
-	}
-}
-
-void HttpRequest::writeResponse(stringstream & ss, char * file_addr, ssize_t file_size){
-	
-	char strRes[256];
-	memset(strRes, '\0', 256);
-	ss.getline(strRes, 100, '\0');
-	ssize_t ttLen = 0, reslen = strlen(strRes);
-
-	m_iov[0].iov_base = strRes;
-	m_iov[0].iov_len  = reslen;
-
-	m_iov[1].iov_base = m_file_addr;
-	m_iov[1].iov_len = m_file_stat.st_size;
-
-	ttLen = reslen + m_file_stat.st_size;
-	
-	int ret;
-	while(true){
-		ret = writev(sockfd_, m_iov, 2);
-		assert(ret != -1);
-		ttLen -= ret;
-		if(ttLen == 0)
-			break;
-	}
-}

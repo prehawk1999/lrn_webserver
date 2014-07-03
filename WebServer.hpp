@@ -8,6 +8,7 @@
 #ifndef SERVERIO_H_
 #define SERVERIO_H_
 
+#include <syslog.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -68,7 +69,6 @@ private:
 
 template<typename T>
 WebServer<T>::~WebServer(){
-
 }
 
 template<typename T>
@@ -105,6 +105,7 @@ int WebServer<T>::initialize(const char * ip, int port){
     setnonblocking(m_listenfd);
 
     T::m_epollfd = m_epollfd;
+    return 0;
 }
 
 template<typename T>
@@ -130,7 +131,7 @@ void WebServer<T>::loopwait(){
 				sockaddr_in client_addr;
 				socklen_t addr_len = sizeof(client_addr);
 				int connfd = accept(m_listenfd, (sockaddr *)&client_addr, &addr_len);
-				m_reqpool[connfd] = make_shared<T>(new T(connfd));
+				m_reqpool[connfd] = shared_ptr<T>(new T(connfd));
 				fd_add(m_epollfd, connfd);
 				setnonblocking(connfd);
 				newfd = true;
@@ -147,7 +148,7 @@ void WebServer<T>::loopwait(){
 					m_threadpool.append( m_reqpool[sockfd], false );
 				}
 			}
-			else if( m_events[i].events & EPOLLOUT ){
+			else if( m_events[i].events & EPOLLOUT ){ //todo
 				fd_rmv(m_epollfd, sockfd);
 				close(sockfd);
 				m_reqpool[sockfd].reset();
