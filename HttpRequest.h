@@ -43,21 +43,18 @@ const string page_404(PAGE_404);
 
 class HttpRequest: public Request
 {
-	enum REQ_STATE{REQ_OK, REQ_WAIT, REQ_BAD};
-	enum WORD_STATE{W_TAG, W_CONTENT, W_BAD };
-	enum METHOD{GET, HEAD, TRACE};
-	enum CONNECTION{KEEPALIVE, CLOSE};
 
 	//GAP
 	enum HTTP_STATUS{_100, _200, _400, _404, _500, _505};
 	enum RECV_STATE{R_OPEN, R_BAD, R_END, R_CLOSE};
+	enum REQ_STATE{Q_REQ, Q_HEAD, Q_BODY};
 	enum LINE_STATE{L_METHOD, L_HOST, L_UA, L_ACCEPT,
 		L_REFERER, L_CONNECTION, L_CONLEN, L_DATE, L_UNKNOWN};
 
 	static const char * s_version[];
 	static const char * s_connection[];
 	static const char * s_line_state[];
-	static const char * s_res_code[];
+	static const char * s_res_httpcode[];
 	static const char * s_pages_addr[];
 
 public:
@@ -71,18 +68,16 @@ public:
 
 private:
 
-
-	//GAP
 	void writeResponse(stringstream & ss, char * file_addr, ssize_t file_size);
 
-	int parseLineLoop( );
+	void parseLineLoop( );
 	void parseLine( );
 	void getWord(char * p, int count);
-
+	void getFileAddr(char * filename);
 	void addData(const char * head, size_t size=0);
 	char * genDate();
 	int cmpValue(const char * value, int count);
-	void getValue(char * & value, int count);
+	void makeWord(char * pos, int count);
 	void getConnection();
 
 private:
@@ -92,56 +87,53 @@ private:
 
 private:
 
-	////////////////////////////////////
-	// GAP
-	///////////////////////////////////
 
     //buffer fields
-    char * 			m_read_buf;
+    char * 			p_bufRead;				// should memset when new connection
 
 	//request test
 	static int		req_count;
-	int 			test_count;
 
 	//request state
-	ssize_t 			bytes_recv;
-	ssize_t				bytes_send;
-	ssize_t				n_linePos; // new request
+	ssize_t 			n_bytesRecv;
+	ssize_t				n_bytesSend;
+	ssize_t				n_newLinepos; // new request
 
-	char *				E;		//read pivot
+	char *				p_parse;		//read pivot
 
-	char * 				l_startPos;
-	char *				l_endPos;
-	char * 				w_startPos;
-	char * 				w_endPos;
+	char * 				p_Lstart;
+	char *				p_Lend;
+	char * 				p_Wstart;
+	char * 				p_Wend;
 
 
-	RECV_STATE			RECV_;
-	LINE_STATE			LINE_;
+	RECV_STATE			st_recv;
+	LINE_STATE			st_line;
+	REQ_STATE			st_req;
 
-	bool				ISNEWCONN_;
-	bool				ISNEWLINE_;
-	bool				ISKEEPALIVE_;
+	bool				is_newconn;
+	bool				is_newline;
+	bool				is_keepalive;
 
 
 	//response field
-	HTTP_STATUS			RET_CODE_;
+	HTTP_STATUS			st_httpCode;
 
 	//file location, a path
-	char *				fileName;
+	char *				p_fileName;
 
 	//file pointer that point to the beginning of the file.
-	char *				fileAddr;
+	char *				p_fileAddr;
 
 	//file status.
-	struct stat			fileStat;
-	char *				fileSize;
+	struct stat			sc_fileStat;
+	char *				p_fileSize;
 
 
-	struct iovec * 		IOV_;
-	int					IOC_;
+	struct iovec * 		sc_iov;
+	int					n_ioc;
 
-	char *				loc_time;
+	char *				p_loctime;
 
 
 };

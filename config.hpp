@@ -18,7 +18,7 @@
 #define IOV_COUNT		2
 
 
-#define READ_BUF_SIZE   1024
+#define READ_BUF_SIZE   4096
 #define WRITE_BUF_SIZE  1024
 
 
